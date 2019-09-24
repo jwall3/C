@@ -1,0 +1,247 @@
+#include <stdio.h>
+#include <math.h>
+#include <stdlib.h>
+#include <time.h>
+#include <string.h>
+
+#define PI 3.141592654
+
+FILE *in1;
+FILE *in2;
+FILE *out1;
+
+char line1[10000];
+char line2[10000];
+
+main()
+{ int mol=1, atom=1, mol_out, atom_out, n_peptide, i_peptide, n_atom_peptide, i_atom_peptide;
+  int i, j, k, temp_i, temp_j;
+  int n_grid, N_grid, i_grid;
+  double x1, y1, z1, dd1, D, r, box_l, box_c, gold_c=18, dist_GS=0.25;
+  double x2, y2, z2, dd2, rr;
+
+  double x_new, y_new, z_new;
+  double x_old, y_old, z_old;
+  double angle_x, angle_y, angle_z;
+  double delt_angle_x, delt_angle_y, delt_angle_z;
+  char resid_name[5], atom_name[5];
+
+  in1=fopen("au-cubic.gro", "r");
+  in2=fopen("peptide.gro", "r");
+  out1=fopen("au-peptide.gro", "w");
+
+  printf("Please inpute the diameter (nm) of nanopartile:");
+  scanf("%lf", &D);
+
+  box_l=D+7;  
+  box_c=box_l/2;
+
+  r=D/2.0;
+  rr=r*r;
+
+  printf("Please inpute the number of peptide to place on the surface of gold nanoparticle:");
+  scanf("%d", &n_peptide);
+  delt_angle_x=PI;
+
+  n_grid=n_peptide-2;
+  n_grid=(int)(sqrt(n_grid/4)-0.00000000000001)+1;
+  N_grid=n_grid*2;
+
+  delt_angle_y=PI/N_grid;
+
+  fgets(line1, 10000, in1);   fgets(line2, 10000, in2);
+  fprintf(out1,"Gold particle d = %3.1lf nm and %d peptides\n", r*2, n_peptide);
+
+  fgets(line1, 10000, in1);   fgets(line2, 10000, in2);
+  sscanf(line2, "%d", &n_atom_peptide);
+
+  fprintf(out1,"the total number of atoms\n");
+
+/////GOld part
+  while(fgets(line1, 10000, in1)!=NULL&&fgets(line2, 10000, in1)!=NULL)
+  {  if(D<=36)
+     {  sscanf(line1, "%*dAU2     AU%*d%lf%lf%lf", &x1, &y1, &z1);
+//      dd1=(x1-r-1)*(x1-r-1)+(y1-r-1)*(y1-r-1)+(z1-r-1)*(z1-r-1);
+        dd1=(x1-gold_c)*(x1-gold_c)+(y1-gold_c)*(y1-gold_c)+(z1-gold_c)*(z1-gold_c);
+
+        sscanf(line2, "%*dAU2     AUC%*d%lf%lf%lf", &x2, &y2, &z2);
+//      dd2=(x2-r-1)*(x2-r-1)+(y2-r-1)*(y2-r-1)+(z2-r-1)*(z2-r-1);
+        dd2=(x2-gold_c)*(x2-gold_c)+(y2-gold_c)*(y2-gold_c)+(z2-gold_c)*(z2-gold_c);
+
+        if(dd1<=rr||dd2<=rr)
+        {  atom_out=atom;
+           if(atom>99999) { atom_out=atom-atom/100000*100000;}
+		   mol_out=mol;
+           if(mol>99999)  { mol_out=mol-mol/100000*100000;}
+		   fprintf(out1, "%5dAU2     AU%5d%8.3lf%8.3lf%8.3lf\n", mol_out, atom_out, x1-gold_c+box_c, y1-gold_c+box_c, z1-gold_c+box_c);
+           atom++;
+
+		   atom_out=atom;
+           if(atom>99999) { atom_out=atom-atom/100000*100000;}
+		   mol_out=mol;
+           if(mol>99999)  { mol_out=mol-mol/100000*100000;}
+           fprintf(out1, "%5dAU2    AUC%5d%8.3lf%8.3lf%8.3lf\n", mol_out, atom_out, x2-gold_c+box_c, y2-gold_c+box_c, z2-gold_c+box_c);
+           atom++;
+           mol++;
+        }
+     }
+  }
+///////End of Gold part
+
+
+//////Peptide part
+  i_peptide=0;
+  for(i=0;i*delt_angle_x<PI;i++)	//Only i=0? delt_angle_x is PI
+  {  angle_x=i*delt_angle_x;	//angle_x = 0?
+
+     for(j=0;j<=n_grid;j++)
+     {  angle_y=j*delt_angle_y;		// j = 0 ~ n, including center line & top half, represent the center cycle to the jth cycle
+
+        i_grid=4*(n_grid-j); 
+        if(j==n_grid) {i_grid=1;}	//i_grid is the number of point for the jth cycle, if j = n, let i_grid=1, representing the top one
+        delt_angle_z=2*PI/i_grid;		// rotating angle on z is PI devided by i_grid
+
+        if(j==0){i_grid=2*n_grid; delt_angle_z=PI/i_grid;}	// j = 0, the central cyle, so the number is half
+        for(k=0;k<i_grid;k++)
+        {  angle_z=k*delt_angle_z;
+
+           // the bottom Z half ones -- South
+           for(i_atom_peptide=0;i_atom_peptide<n_atom_peptide;i_atom_peptide++)
+           {  fgets(line2, 10000, in2);
+              sscanf(line2, "%5d%5s%5s%5d%lf%lf%lf", &temp_i, resid_name, atom_name, &temp_j, &x_old, &y_old, &z_old);
+// shift to be avway from the source point by r+0.3 along X axis as the source peptide is place on X axis
+              x_new=x_old+r+dist_GS;
+              y_new=y_old;
+              z_new=z_old;
+
+              x_old=x_new;
+              y_old=y_new;
+              z_old=z_new;
+
+// rotate aroung x axis       
+              x_new=x_old;
+              y_new=y_old*cos(angle_x)-z_old*sin(angle_x);
+              z_new=y_old*sin(angle_x)+z_old*cos(angle_x);
+        
+              x_old=x_new;
+              y_old=y_new;
+              z_old=z_new;
+        
+// rotate aroung y axis              
+              x_new=x_old*cos(angle_y)+z_old*sin(angle_y);
+              y_new=y_old;
+              z_new=z_old*cos(angle_y)-x_old*sin(angle_y);
+        
+              x_old=x_new;
+              y_old=y_new;
+              z_old=z_new;
+        
+// rotate aroung z axis              
+              x_new=x_old*cos(angle_z)-y_old*sin(angle_z);
+              y_new=x_old*sin(angle_z)+y_old*cos(angle_z);
+              z_new=z_old;
+
+              x_old=x_new;
+              y_old=y_new;
+              z_old=z_new;
+
+// shift to aroung the gold particle
+              x_new=x_old+box_c;
+              y_new=y_old+box_c;
+              z_new=z_old+box_c;
+
+              atom_out=atom;
+              if(atom>99999) { atom_out=atom-atom/100000*100000;}
+		      mol_out=mol;
+              if(mol>99999)  { mol_out=mol-mol/100000*100000;}
+              fprintf(out1, "%5d%-5s%5s%05d%8.3lf%8.3lf%8.3lf\n", mol_out, resid_name, atom_name, atom_out, x_new, y_new, z_new);
+              atom++;
+           }
+
+           rewind(in2);
+           fgets(line2, 10000, in2);
+           fgets(line2, 10000, in2);
+           mol++;
+
+           i_peptide++;
+           if(i_peptide>=n_peptide)
+           {  goto out;
+           }
+
+           // the top Z half ones -- North
+           for(i_atom_peptide=0;i_atom_peptide<n_atom_peptide;i_atom_peptide++)
+           {  fgets(line2, 10000, in2);
+              sscanf(line2, "%5d%5s%5s%5d%lf%lf%lf", &temp_i, resid_name, atom_name, &temp_j, &x_old, &y_old, &z_old);
+// shift to be avway from the source point by r+0.3 along X axis as the source peptide is place on X axis
+              x_new=-x_old-r-dist_GS;
+              y_new=-y_old;
+              z_new=z_old;
+
+              x_old=x_new;
+              y_old=y_new;
+              z_old=z_new;
+
+// rotate aroung x axis
+              x_new=x_old;
+              y_new=y_old*cos(angle_x)-z_old*sin(angle_x);
+              z_new=y_old*sin(angle_x)+z_old*cos(angle_x);
+
+              x_old=x_new;
+              y_old=y_new;
+              z_old=z_new;
+
+// rotate aroung y axis
+              x_new=x_old*cos(angle_y)+z_old*sin(angle_y);
+              y_new=y_old;
+              z_new=z_old*cos(angle_y)-x_old*sin(angle_y);
+
+              x_old=x_new;
+              y_old=y_new;
+              z_old=z_new;
+
+// rotate aroung z axis
+              x_new=x_old*cos(angle_z)-y_old*sin(angle_z);
+              y_new=x_old*sin(angle_z)+y_old*cos(angle_z);
+              z_new=z_old;
+
+              x_old=x_new;
+              y_old=y_new;
+              z_old=z_new;
+
+// shift to aroung the gold particle
+              x_new=x_old+box_c;
+              y_new=y_old+box_c;
+              z_new=z_old+box_c;
+
+
+              atom_out=atom;
+              if(atom>99999) { atom_out=atom-atom/100000*100000;}
+		      mol_out=mol;
+              if(mol>99999)  { mol_out=mol-mol/100000*100000;}
+              fprintf(out1, "%5d%-5s%5s%05d%8.3lf%8.3lf%8.3lf\n", mol_out, resid_name, atom_name, atom_out, x_new, y_new, z_new);
+
+              atom++;
+           }
+
+           rewind(in2);
+           fgets(line2, 10000, in2);
+           fgets(line2, 10000, in2);
+           mol++;
+
+           i_peptide++;
+           if(i_peptide>=n_peptide)
+           {  goto out;
+           }
+        }
+     } 
+
+out: break;
+  }
+/////End of peptide part
+
+  fprintf(out1,"%10.5lf%10.5lf%10.5lf\n", box_l, box_l, box_l);
+
+  fclose(in1);
+  fclose(in2);
+  fclose(out1);
+}
